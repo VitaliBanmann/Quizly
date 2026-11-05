@@ -21,7 +21,7 @@ python -m pip install -r requirements.txt
 copy .env.template .env         # Linux/macOS: cp .env.template .env
 ```
 
-Edit `.env` and set `SECRET_KEY` and `GEMINI_API_KEY` (optional: `GEMINI_MODEL`, default `gemini-3.5-flash`).
+Edit `.env` and set `SECRET_KEY` and `GEMINI_API_KEY` (optional: `GEMINI_MODELS`, a comma-separated list of models tried in order, default `gemini-3.5-flash,gemini-3-flash-preview,gemini-3.1-flash-lite`).
 
 ```bash
 python manage.py migrate

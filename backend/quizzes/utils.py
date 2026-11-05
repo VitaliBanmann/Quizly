@@ -1,5 +1,6 @@
 """Pipeline helpers: YouTube audio download, transcription and quiz generation."""
 import json
+import logging
 import random
 import re
 import tempfile
@@ -18,8 +19,11 @@ YOUTUBE_URL_PATTERN = re.compile(
     r'^https?://(www\.|m\.)?(youtube\.com/(watch\?|shorts/|embed/)|youtu\.be/)',
 )
 
-GEMINI_ATTEMPTS = 4
-GEMINI_RETRY_DELAY = 5
+GEMINI_ATTEMPTS = 2
+GEMINI_RETRY_DELAY = 3
+RETRYABLE_CODES = (429, 500, 503)
+
+logger = logging.getLogger(__name__)
 
 QUIZ_PROMPT = """Based on the following transcript, generate a quiz in valid JSON format.
 
@@ -79,29 +83,38 @@ def transcribe_audio(audio_path):
     return model.transcribe(audio_path)['text']
 
 
-def call_gemini(transcript):
-    """Send the transcript to Gemini Flash and return the raw response text."""
+def call_gemini(transcript, model):
+    """Send the transcript to one Gemini model and return the response text."""
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
     response = client.models.generate_content(
-        model=settings.GEMINI_MODEL,
+        model=model,
         contents=QUIZ_PROMPT + transcript,
         config={'response_mime_type': 'application/json'},
     )
     return response.text
 
 
-def request_quiz_json(transcript):
-    """Ask Gemini for a quiz, retrying while the service is overloaded."""
-    last_error = None
+def call_with_retry(transcript, model):
+    """Call one model, retrying briefly on overload or rate limits."""
     for attempt in range(GEMINI_ATTEMPTS):
         try:
-            return call_gemini(transcript)
-        except genai_errors.ServerError as error:
-            last_error = error
-            time.sleep(GEMINI_RETRY_DELAY * (attempt + 1))
+            return call_gemini(transcript, model)
+        except genai_errors.APIError as error:
+            last_attempt = attempt == GEMINI_ATTEMPTS - 1
+            if error.code not in RETRYABLE_CODES or last_attempt:
+                raise
+            time.sleep(GEMINI_RETRY_DELAY)
+
+
+def request_quiz_json(transcript):
+    """Ask Gemini for a quiz and fall back to the next model on failure."""
+    last_error = None
+    for model in settings.GEMINI_MODELS:
+        try:
+            return call_with_retry(transcript, model)
         except genai_errors.APIError as error:
             last_error = error
-            break
+            logger.warning('Gemini model %s failed: %s', model, error)
     raise QuizGenerationError(
         'The quiz service is currently unavailable.') from last_error
 

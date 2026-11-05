@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import yt_dlp
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import User
+from django.conf import settings
 from django.test import RequestFactory, TestCase
 from google.genai import errors as genai_errors
 
@@ -80,18 +81,27 @@ class PipelineTests(TestCase):
 
     @patch('quizzes.utils.time.sleep')
     @patch('quizzes.utils.call_gemini')
-    def test_request_gives_up_after_retries(self, call, _sleep):
+    def test_request_falls_back_to_next_model(self, call, _sleep):
+        limit = genai_errors.ClientError(429, {'error': {}})
+        call.side_effect = [limit, limit, '{}']
+        self.assertEqual(utils.request_quiz_json('text'), '{}')
+        self.assertEqual(call.call_args.args[1], settings.GEMINI_MODELS[1])
+
+    @patch('quizzes.utils.time.sleep')
+    @patch('quizzes.utils.call_gemini')
+    def test_request_fails_when_all_models_fail(self, call, _sleep):
         call.side_effect = genai_errors.ServerError(503, {'error': {}})
         with self.assertRaises(utils.QuizGenerationError):
             utils.request_quiz_json('text')
-        self.assertEqual(call.call_count, utils.GEMINI_ATTEMPTS)
+        expected = utils.GEMINI_ATTEMPTS * len(settings.GEMINI_MODELS)
+        self.assertEqual(call.call_count, expected)
 
     @patch('quizzes.utils.call_gemini')
-    def test_request_client_error_not_retried(self, call):
+    def test_client_error_is_not_retried_on_same_model(self, call):
         call.side_effect = genai_errors.ClientError(400, {'error': {}})
         with self.assertRaises(utils.QuizGenerationError):
             utils.request_quiz_json('text')
-        self.assertEqual(call.call_count, 1)
+        self.assertEqual(call.call_count, len(settings.GEMINI_MODELS))
 
     @patch('quizzes.utils.request_quiz_json')
     @patch('quizzes.utils.transcribe_audio', return_value='text')
