@@ -2,18 +2,23 @@
 import json
 import re
 import tempfile
+import time
 from pathlib import Path
 
 import whisper
 import yt_dlp
 from django.conf import settings
 from google import genai
+from google.genai import errors as genai_errors
 
 from quizzes.models import Question, Quiz
 
 YOUTUBE_URL_PATTERN = re.compile(
     r'^https?://(www\.|m\.)?(youtube\.com/(watch\?|shorts/|embed/)|youtu\.be/)',
 )
+
+GEMINI_ATTEMPTS = 4
+GEMINI_RETRY_DELAY = 5
 
 QUIZ_PROMPT = """Based on the following transcript, generate a quiz in valid JSON format.
 
@@ -71,8 +76,8 @@ def transcribe_audio(audio_path):
     return model.transcribe(audio_path)['text']
 
 
-def request_quiz_json(transcript):
-    """Ask Gemini Flash for a quiz and return the raw JSON text."""
+def call_gemini(transcript):
+    """Send the transcript to Gemini Flash and return the raw response text."""
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
     response = client.models.generate_content(
         model=settings.GEMINI_MODEL,
@@ -80,6 +85,22 @@ def request_quiz_json(transcript):
         config={'response_mime_type': 'application/json'},
     )
     return response.text
+
+
+def request_quiz_json(transcript):
+    """Ask Gemini for a quiz, retrying while the service is overloaded."""
+    last_error = None
+    for attempt in range(GEMINI_ATTEMPTS):
+        try:
+            return call_gemini(transcript)
+        except genai_errors.ServerError as error:
+            last_error = error
+            time.sleep(GEMINI_RETRY_DELAY * (attempt + 1))
+        except genai_errors.APIError as error:
+            last_error = error
+            break
+    raise QuizGenerationError(
+        'The quiz service is currently unavailable.') from last_error
 
 
 def parse_quiz_data(raw_json):

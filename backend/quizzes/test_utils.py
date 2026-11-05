@@ -6,6 +6,7 @@ import yt_dlp
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import User
 from django.test import RequestFactory, TestCase
+from google.genai import errors as genai_errors
 
 from quizzes import utils
 from quizzes.admin import QuizAdmin
@@ -68,6 +69,29 @@ class PipelineTests(TestCase):
         client = client_class.return_value
         client.models.generate_content.return_value = MagicMock(text='{}')
         self.assertEqual(utils.request_quiz_json('text'), '{}')
+
+    @patch('quizzes.utils.time.sleep')
+    @patch('quizzes.utils.call_gemini')
+    def test_request_retries_on_overload(self, call, sleep):
+        overload = genai_errors.ServerError(503, {'error': {}})
+        call.side_effect = [overload, '{}']
+        self.assertEqual(utils.request_quiz_json('text'), '{}')
+        sleep.assert_called_once()
+
+    @patch('quizzes.utils.time.sleep')
+    @patch('quizzes.utils.call_gemini')
+    def test_request_gives_up_after_retries(self, call, _sleep):
+        call.side_effect = genai_errors.ServerError(503, {'error': {}})
+        with self.assertRaises(utils.QuizGenerationError):
+            utils.request_quiz_json('text')
+        self.assertEqual(call.call_count, utils.GEMINI_ATTEMPTS)
+
+    @patch('quizzes.utils.call_gemini')
+    def test_request_client_error_not_retried(self, call):
+        call.side_effect = genai_errors.ClientError(400, {'error': {}})
+        with self.assertRaises(utils.QuizGenerationError):
+            utils.request_quiz_json('text')
+        self.assertEqual(call.call_count, 1)
 
     @patch('quizzes.utils.request_quiz_json')
     @patch('quizzes.utils.transcribe_audio', return_value='text')
