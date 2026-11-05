@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.sqlite3
+*.log
+.env
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend is provided separately and not submitted
+frontend/
+
+# Node
+node_modules/
+
+# IDE
+.vscode/
