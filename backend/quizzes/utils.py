@@ -39,7 +39,8 @@ The quiz must follow this exact structure:
 
 Requirements:
 - Exactly 10 questions.
-- Write all texts in the same language as the transcript.
+- Write all texts (title, description, questions, options, answers) in German,
+  regardless of the language of the transcript.
 - Each question has exactly 4 distinct answer options and exactly one correct answer.
 - The output must be valid JSON without any text outside the JSON.
 
