@@ -1,5 +1,6 @@
 """Pipeline helpers: YouTube audio download, transcription and quiz generation."""
 import json
+import random
 import re
 import tempfile
 import time
@@ -38,6 +39,7 @@ The quiz must follow this exact structure:
 
 Requirements:
 - Exactly 10 questions.
+- Write all texts in the same language as the transcript.
 - Each question has exactly 4 distinct answer options and exactly one correct answer.
 - The output must be valid JSON without any text outside the JSON.
 
@@ -138,7 +140,8 @@ def save_quiz(user, url, data):
 
 def build_question(quiz, item):
     """Create an unsaved Question from generated question data."""
-    options = item['question_options']
+    options = list(item['question_options'])
+    random.shuffle(options)
     return Question(
         quiz=quiz, question_title=item['question_title'],
         option1=options[0], option2=options[1],

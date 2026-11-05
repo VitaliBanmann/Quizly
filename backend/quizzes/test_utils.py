@@ -112,6 +112,19 @@ class ModelAndAdminTests(TestCase):
         self.assertEqual(str(quiz), 'T')
         self.assertEqual(str(Question.objects.get(quiz=quiz)), 'Q')
 
+    def test_options_are_shuffled_and_keep_answer(self):
+        quiz = Quiz.objects.create(
+            user=self.user, title='T', description='D', video_url='https://x.com')
+        item = DATA['questions'][0]
+        orders = set()
+        for _ in range(30):
+            question = utils.build_question(quiz, item)
+            options = [question.option1, question.option2,
+                       question.option3, question.option4]
+            self.assertEqual(sorted(options), ['A', 'B', 'C', 'D'])
+            orders.add(tuple(options))
+        self.assertGreater(len(orders), 1)
+
     def test_admin_assigns_owner_on_create(self):
         request = RequestFactory().post('/')
         request.user = self.user
