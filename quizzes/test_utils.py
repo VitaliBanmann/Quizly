@@ -79,6 +79,12 @@ class PipelineTests(TestCase):
         load_model.return_value.transcribe.return_value = {'text': 'hello'}
         self.assertEqual(utils.transcribe_audio('a.webm'), 'hello')
 
+    @patch('quizzes.utils.whisper.load_model')
+    def test_transcribe_audio_error(self, load_model):
+        load_model.side_effect = FileNotFoundError('ffmpeg')
+        with self.assertRaises(utils.QuizGenerationError):
+            utils.transcribe_audio('a.webm')
+
     @patch('quizzes.utils.genai.Client')
     def test_request_quiz_json(self, client_class):
         client = client_class.return_value

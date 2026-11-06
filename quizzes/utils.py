@@ -84,14 +84,19 @@ def download_audio(url, target_dir):
         with yt_dlp.YoutubeDL(options) as downloader:
             info = downloader.extract_info(url, download=True)
             return downloader.prepare_filename(info)
-    except yt_dlp.utils.DownloadError as error:
+    except Exception as error:
+        logger.exception('Audio download failed for %s', url)
         raise QuizGenerationError('Could not download the video audio.') from error
 
 
 def transcribe_audio(audio_path):
     """Transcribe an audio file locally with Whisper."""
-    model = whisper.load_model('turbo')
-    return model.transcribe(audio_path)['text']
+    try:
+        model = whisper.load_model('turbo')
+        return model.transcribe(audio_path)['text']
+    except Exception as error:
+        logger.exception('Transcription failed (is ffmpeg installed?)')
+        raise QuizGenerationError('Could not transcribe the audio.') from error
 
 
 def call_gemini(transcript, model):
@@ -123,7 +128,7 @@ def request_quiz_json(transcript):
     for model in settings.GEMINI_MODELS:
         try:
             return call_with_retry(transcript, model)
-        except genai_errors.APIError as error:
+        except Exception as error:
             last_error = error
             logger.warning('Gemini model %s failed: %s', model, error)
     raise QuizGenerationError(

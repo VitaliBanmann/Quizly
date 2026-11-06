@@ -6,7 +6,8 @@ generate a quiz with 10 questions and 4 options each.
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.11 – 3.14 (the dependencies are not pinned, so pip picks wheels
+  matching your Python version; tested on 3.13)
 - **FFmpeg must be installed globally** and available on the `PATH`
   (required by Whisper). Check with `ffmpeg -version`.
 - A Gemini API key
@@ -70,6 +71,16 @@ listed in `CORS_ALLOWED_ORIGINS`.
 | DELETE | `/api/quizzes/{id}/` | yes | Delete a quiz |
 
 Authentication uses JWT stored in HTTP-only cookies.
+
+## Troubleshooting
+
+- Quiz creation returns 400: check the server log, which shows the real
+  cause (download, transcription or Gemini error).
+- `Could not transcribe the audio`: FFmpeg is missing on the `PATH`.
+- `The quiz service is currently unavailable`: invalid `GEMINI_API_KEY` or
+  the free-tier quota is used up (the models in `GEMINI_MODELS` are tried in turn).
+- yt-dlp warns about a missing JavaScript runtime: install `deno` or `node`
+  if some videos fail to download.
 
 ## Tests
 
