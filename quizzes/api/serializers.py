@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 from quizzes.models import Question, Quiz
 from quizzes.utils import (QuizGenerationError, generate_quiz_data,
-                           is_youtube_url, save_quiz)
+                           normalize_youtube_url, save_quiz)
 
 
 class QuestionBriefSerializer(serializers.ModelSerializer):
@@ -54,10 +54,11 @@ class QuizCreateSerializer(serializers.Serializer):
     url = serializers.URLField()
 
     def validate_url(self, value):
-        """Only accept YouTube video urls."""
-        if not is_youtube_url(value):
+        """Only accept YouTube video urls and store them in canonical form."""
+        url = normalize_youtube_url(value)
+        if url is None:
             raise serializers.ValidationError('Not a valid YouTube url.')
-        return value
+        return url
 
     def create(self, validated_data):
         """Generate the quiz for the requesting user."""

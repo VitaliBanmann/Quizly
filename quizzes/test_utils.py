@@ -31,6 +31,20 @@ class UrlAndParseTests(TestCase):
         self.assertTrue(utils.is_youtube_url('https://youtu.be/abc'))
         self.assertFalse(utils.is_youtube_url('https://example.com/x'))
 
+    def test_normalize_youtube_url(self):
+        expected = 'https://www.youtube.com/watch?v=abc_1-2'
+        for url in ['https://youtu.be/abc_1-2?si=x',
+                    'https://www.youtube.com/watch?v=abc_1-2&t=5',
+                    'https://www.youtube.com/watch?feature=x&v=abc_1-2',
+                    'https://www.youtube.com/shorts/abc_1-2',
+                    'https://www.youtube.com/embed/abc_1-2']:
+            self.assertEqual(utils.normalize_youtube_url(url), expected)
+
+    def test_normalize_rejects_invalid(self):
+        self.assertIsNone(utils.normalize_youtube_url('https://example.com'))
+        self.assertIsNone(
+            utils.normalize_youtube_url('https://www.youtube.com/watch?'))
+
     def test_parse_valid(self):
         self.assertEqual(utils.parse_quiz_data(json.dumps(DATA)), DATA)
 

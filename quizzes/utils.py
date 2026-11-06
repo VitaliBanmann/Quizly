@@ -18,6 +18,9 @@ from quizzes.models import Question, Quiz
 YOUTUBE_URL_PATTERN = re.compile(
     r'^https?://(www\.|m\.)?(youtube\.com/(watch\?|shorts/|embed/)|youtu\.be/)',
 )
+VIDEO_ID_PATTERN = re.compile(
+    r'(?:[?&]v=|youtu\.be/|shorts/|embed/)([\w-]+)',
+)
 
 GEMINI_ATTEMPTS = 2
 GEMINI_RETRY_DELAY = 3
@@ -59,6 +62,14 @@ class QuizGenerationError(Exception):
 def is_youtube_url(url):
     """Return True if the url points to a YouTube video."""
     return bool(YOUTUBE_URL_PATTERN.match(url))
+
+
+def normalize_youtube_url(url):
+    """Return the canonical watch url of a YouTube video or None."""
+    match = VIDEO_ID_PATTERN.search(url)
+    if not is_youtube_url(url) or not match:
+        return None
+    return f'https://www.youtube.com/watch?v={match.group(1)}'
 
 
 def download_audio(url, target_dir):
