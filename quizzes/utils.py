@@ -140,9 +140,22 @@ def parse_quiz_data(raw_json):
     try:
         data = json.loads(raw_json)
         questions = data['questions']
+        if not isinstance(questions, list) or len(questions) != 10:
+            raise ValueError('A quiz needs exactly ten questions.')
         for question in questions:
-            if len(question['question_options']) != 4:
+            if not isinstance(question, dict):
+                raise ValueError('Each question must be an object.')
+            options = question.get('question_options')
+            answer = question.get('answer')
+            if not isinstance(options, list) or len(options) != 4:
                 raise ValueError('Each question needs four options.')
+            if not all(isinstance(option, str) and option.strip()
+                       for option in options):
+                raise ValueError('Each option must be a non-empty string.')
+            if len(set(options)) != 4:
+                raise ValueError('Each question needs four distinct options.')
+            if not isinstance(answer, str) or answer not in options:
+                raise ValueError('The answer must match one of the options.')
     except (ValueError, KeyError, TypeError) as error:
         raise QuizGenerationError('Invalid quiz data received.') from error
     return data
