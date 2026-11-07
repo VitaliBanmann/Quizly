@@ -24,6 +24,19 @@ DATA = {
 }
 
 
+def make_quiz_data(question_count=10):
+    """Return valid quiz data with the requested number of questions."""
+    return {
+        'title': 'T',
+        'description': 'D',
+        'questions': [{
+            'question_title': f'Question {index}',
+            'question_options': ['A', 'B', 'C', 'D'],
+            'answer': 'A',
+        } for index in range(question_count)],
+    }
+
+
 class UrlAndParseTests(TestCase):
     """Validate url detection and quiz json parsing."""
 
@@ -46,14 +59,33 @@ class UrlAndParseTests(TestCase):
             utils.normalize_youtube_url('https://www.youtube.com/watch?'))
 
     def test_parse_valid(self):
-        self.assertEqual(utils.parse_quiz_data(json.dumps(DATA)), DATA)
+        data = make_quiz_data()
+        self.assertEqual(utils.parse_quiz_data(json.dumps(data)), data)
 
     def test_parse_invalid_json(self):
         with self.assertRaises(utils.QuizGenerationError):
             utils.parse_quiz_data('not json')
 
+    def test_parse_rejects_wrong_question_count(self):
+        data = make_quiz_data(question_count=9)
+        with self.assertRaises(utils.QuizGenerationError):
+            utils.parse_quiz_data(json.dumps(data))
+
     def test_parse_wrong_option_count(self):
-        bad = {'questions': [{'question_options': ['A']}]}
+        bad = make_quiz_data()
+        bad['questions'][0]['question_options'] = ['A', 'B', 'C']
+        with self.assertRaises(utils.QuizGenerationError):
+            utils.parse_quiz_data(json.dumps(bad))
+
+    def test_parse_rejects_duplicate_options(self):
+        bad = make_quiz_data()
+        bad['questions'][0]['question_options'] = ['A', 'A', 'C', 'D']
+        with self.assertRaises(utils.QuizGenerationError):
+            utils.parse_quiz_data(json.dumps(bad))
+
+    def test_parse_rejects_answer_missing_from_options(self):
+        bad = make_quiz_data()
+        bad['questions'][0]['answer'] = 'E'
         with self.assertRaises(utils.QuizGenerationError):
             utils.parse_quiz_data(json.dumps(bad))
 
@@ -127,8 +159,9 @@ class PipelineTests(TestCase):
     @patch('quizzes.utils.transcribe_audio', return_value='text')
     @patch('quizzes.utils.download_audio', return_value='a.webm')
     def test_generate_quiz_data(self, _download, _transcribe, request_json):
-        request_json.return_value = json.dumps(DATA)
-        self.assertEqual(utils.generate_quiz_data('url'), DATA)
+        data = make_quiz_data()
+        request_json.return_value = json.dumps(data)
+        self.assertEqual(utils.generate_quiz_data('url'), data)
 
 
 class ModelAndAdminTests(TestCase):
@@ -152,6 +185,7 @@ class ModelAndAdminTests(TestCase):
             options = [question.option1, question.option2,
                        question.option3, question.option4]
             self.assertEqual(sorted(options), ['A', 'B', 'C', 'D'])
+            self.assertIn(question.answer, options)
             orders.add(tuple(options))
         self.assertGreater(len(orders), 1)
 
